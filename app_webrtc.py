@@ -1,8 +1,6 @@
 import streamlit as st
-import cv2
 import numpy as np
 import tensorflow as tf
-from ultralytics import YOLO
 from tensorflow.keras.applications.efficientnet_v2 import preprocess_input
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration, WebRtcMode
 import av
@@ -35,6 +33,9 @@ class EmotionProcessor(VideoProcessorBase):
     def recv(self, frame):
         # Lazy load ML models directly on the WebRTC thread to prevent memory-leaks and thread SegFaults
         if self.face_model is None:
+            import cv2
+            from ultralytics import YOLO
+            self.cv2 = cv2
             self.face_model = YOLO('yolov8n-face-lindevs.onnx', task='detect')
             self.interpreter = tf.lite.Interpreter(model_path="affecnet_phase2_finetuned_v2_lite.tflite")
             self.interpreter.allocate_tensors()
@@ -42,7 +43,11 @@ class EmotionProcessor(VideoProcessorBase):
             self.output_details = self.interpreter.get_output_details()
 
         img = frame.to_ndarray(format="bgr24")
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
+        # Guard clause in case cv2 hasn't loaded yet
+        if self.face_model is None: return frame
+
+        img_rgb = self.cv2.cvtColor(img, self.cv2.COLOR_BGR2RGB)
         self.frame_count += 1
 
         if self.frame_count % PROCESS_EVERY_N_FRAMES == 0:
@@ -60,7 +65,7 @@ class EmotionProcessor(VideoProcessorBase):
 
                     face_crop = img_rgb[ny1:ny2, nx1:nx2]
                     if face_crop.size > 0:
-                        face_resized = cv2.resize(face_crop, TARGET_SIZE)
+                        face_resized = self.cv2.resize(face_crop, TARGET_SIZE)
                         input_tensor = np.expand_dims(face_resized.astype('float32'), axis=0)
                         input_tensor = preprocess_input(input_tensor)
 
@@ -74,9 +79,9 @@ class EmotionProcessor(VideoProcessorBase):
 
         for (box, label, conf) in self.cached_results:
             x1, y1, x2, y2 = box
-            cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(img, f"{label} {conf:.0f}%", (x1, y1 - 10), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            self.cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            self.cv2.putText(img, f"{label} {conf:.0f}%", (x1, y1 - 10), 
+                        self.cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
