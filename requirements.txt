@@ -1,7 +1,10 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
 streamlit
 opencv-python-headless
 numpy
-tensorflow
+tensorflow-cpu
 ultralytics
 streamlit-webrtc
 av
