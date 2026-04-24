@@ -1,7 +1,5 @@
 import streamlit as st
 import numpy as np
-import tensorflow as tf
-from tensorflow.keras.applications.efficientnet_v2 import preprocess_input
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration, WebRtcMode
 import av
 import time
@@ -35,7 +33,11 @@ class EmotionProcessor(VideoProcessorBase):
         if self.face_model is None:
             import cv2
             from ultralytics import YOLO
+            import tensorflow as tf
+            from tensorflow.keras.applications.efficientnet_v2 import preprocess_input
+            
             self.cv2 = cv2
+            self.preprocess_input = preprocess_input
             self.face_model = YOLO('yolov8n-face-lindevs.onnx', task='detect')
             self.interpreter = tf.lite.Interpreter(model_path="affecnet_phase2_finetuned_v2_lite.tflite")
             self.interpreter.allocate_tensors()
@@ -67,7 +69,7 @@ class EmotionProcessor(VideoProcessorBase):
                     if face_crop.size > 0:
                         face_resized = self.cv2.resize(face_crop, TARGET_SIZE)
                         input_tensor = np.expand_dims(face_resized.astype('float32'), axis=0)
-                        input_tensor = preprocess_input(input_tensor)
+                        input_tensor = self.preprocess_input(input_tensor)
 
                         self.interpreter.set_tensor(self.input_details[0]['index'], input_tensor)
                         self.interpreter.invoke()
