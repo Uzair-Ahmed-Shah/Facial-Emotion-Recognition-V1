@@ -26,16 +26,21 @@ RTC_CONFIGURATION = RTCConfiguration(
 
 class EmotionProcessor(VideoProcessorBase):
     def __init__(self):
-        self.face_model = YOLO('yolov8n-face-lindevs.onnx', task='detect')
-        self.interpreter = tf.lite.Interpreter(model_path="affecnet_phase2_finetuned_v2_lite.tflite")
-        self.interpreter.allocate_tensors()
-        self.input_details = self.interpreter.get_input_details()
-        self.output_details = self.interpreter.get_output_details()
+        self.face_model = None
+        self.interpreter = None
         self.frame_count = 0
         self.cached_results = []
         self.current_probabilities = None
 
     def recv(self, frame):
+        # Lazy load ML models directly on the WebRTC thread to prevent memory-leaks and thread SegFaults
+        if self.face_model is None:
+            self.face_model = YOLO('yolov8n-face-lindevs.onnx', task='detect')
+            self.interpreter = tf.lite.Interpreter(model_path="affecnet_phase2_finetuned_v2_lite.tflite")
+            self.interpreter.allocate_tensors()
+            self.input_details = self.interpreter.get_input_details()
+            self.output_details = self.interpreter.get_output_details()
+
         img = frame.to_ndarray(format="bgr24")
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         self.frame_count += 1
@@ -84,7 +89,10 @@ with col1:
         mode=WebRtcMode.SENDRECV,
         video_processor_factory=EmotionProcessor,
         rtc_configuration=RTC_CONFIGURATION,
-        media_stream_constraints={"video": True, "audio": False},
+        media_stream_constraints={
+            "video": {"frameRate": {"ideal": 15}}, 
+            "audio": False
+        },
         async_processing=True
     )
 

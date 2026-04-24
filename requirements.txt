@@ -2,9 +2,11 @@
 torch
 torchvision
 streamlit
+opencv-python-headless
 numpy
 tensorflow-cpu
 ultralytics
 streamlit-webrtc
 av
 watchdog
+onnxruntime
